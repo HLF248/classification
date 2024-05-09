@@ -2,11 +2,9 @@ import os
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
 
-import numpy as np
-import time
+
+
 device = 'cuda'
 
 class CustomDataset(Dataset):
@@ -51,6 +49,70 @@ class CustomDataset(Dataset):
                 image_name, label = line.strip().split()
                 labels[image_name] = int(label)
         return labels
+
+
+# from torchvision import transforms
+# # 定义数据集的路径和文件
+# image_dir = r'C:/Users/13002/Desktop/datasets/IP102/Classification/ip102_v1.1/images'
+# label_dir = r'C:/Users/13002/Desktop/datasets/IP102/Classification/ip102_v1.1'
+# train_file = 'train.txt'
+# val_file = 'val.txt'
+# test_file = 'test.txt'
+
+# # 定义数据预处理           
+# def data_transform():
+#     return transforms.Compose([
+#         transforms.Resize(256),
+#         transforms.CenterCrop(224),
+#         # transforms.ToTensor()
+#     ])
+
+# test_dataset = CustomDataset(image_dir, label_dir, test_file, transform=data_transform())
+# # print(test_dataset.data)
+# from PIL import Image
+
+# def show_sample(sample):
+#     image, label = sample
+#     return image
+
+# # 加载图片
+# image = show_sample(test_dataset[1])
+image = Image.open(r"C:\Users\13002\Desktop\datasets\IP102\Classification\ip102_v1.1\images\00210.jpg")
+
+# 获取图片大小
+width, height = image.size
+
+# 计算每块的大小
+block_width = width // 3
+block_height = height // 3
+
+# 切割图片
+blocks = []
+for i in range(3):
+    for j in range(3):
+        left = j * block_width
+        upper = i * block_height
+        right = left + block_width
+        lower = upper + block_height
+        block = image.crop((left, upper, right, lower))
+        blocks.append(block)
+
+# 显示切割后的图片块
+for i, block in enumerate(blocks):
+    block.show()
+    block.save(f'block_{i}.jpg')  # 保存图片块到文件
+
+# # 定义函数以显示PIL图像和标签
+# def show_sample(sample):
+#     image, label = sample  
+#     plt.imshow(image)
+#     plt.title(f'Label: {label}')
+#     plt.show()
+
+# # 打印训练数据集的前几个样本
+# print("Train Dataset Samples:")
+# for i in range(5):
+#     show_sample(train_dataset[i])
     
 # # 将 PIL 图像对象转换为张量
 # # 定义图像转换操作，包括缩放和裁剪
@@ -84,7 +146,7 @@ class CustomDataset(Dataset):
 # val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE)
 # test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-# # print(train_dataset.data)
+# print(train_dataset.data)
 # print(train_dataset.__getitem__(1)[0].shape)
 # print(type(train_loader))
 

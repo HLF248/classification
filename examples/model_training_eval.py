@@ -1,3 +1,5 @@
+import argparse
+
 from import_ip102_by_torch import CustomDataset
 import torch
 import torch.nn as nn
@@ -15,6 +17,7 @@ from tqdm import tqdm
 from training_test_plot import plot_accuracy_change, visualize_prediction, plot_error_curve
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.nn.init as init
+from torchsummary import summary
 
 def initialize_model(variant, is_pretrained=True):
     model_functions = {
@@ -29,6 +32,9 @@ def initialize_model(variant, is_pretrained=True):
         'vgg11': models.vgg11,
         'vgg11_bn': models.vgg11_bn,
         'vgg13': models.vgg13,
+        'vgg13_bn': models.vgg13_bn,
+        'vgg16': models.vgg16,
+        'vgg19': models.vgg19,
         'vgg16_bn': models.vgg16_bn,
         'vgg19_bn': models.vgg19_bn,
         'googlenet': models.googlenet
@@ -41,24 +47,20 @@ def initialize_model(variant, is_pretrained=True):
     print(f'{variant} {"pretrained" if is_pretrained else "training from scratch"}')
     return model_function(pretrained=is_pretrained)
 
-model_names = [
-    'resnet50', # 0
-    'resnet101', # 1
-    'resnext50', 
-    'resnet152', 
-    'vit_base_16', 
-    'vit_base_32', 
-    'vit_large_16', 
-    'alexnet',
-    'vgg11',
-    'vgg11_bn',
-    'vgg13',
-    'vgg16_bn',
-    'vgg19_bn',
-    'googlenet' # 13
-]
 
-def training_from_last(model, model_name=model_names[0]):
+def parse_option():
+    parser = argparse.ArgumentParser(description='Train or test a model.')
+    parser.add_argument('model_name', type=str, help='Name of the model to use')
+    parser.add_argument('--test', 
+                        action='store_true', 
+                        help='Whether to only test the model (default is to train and then test)')
+    parser.add_argument('--pretrained',
+                        action='store_true',
+                        help='whether to load a pretrained model')
+    
+    return parser.parse_args()
+
+def training_from_last(model, model_name):
     # 从上次训练的结果开始训练
     best_model_file = f'D:/my_checkpoints/{model_name}_best.pth'
     model.load_state_dict(torch.load(f'{best_model_file}'))
@@ -68,8 +70,19 @@ def redefining_classifier(model, num_classes, model_name, isPretrained=True):
 
     if model_name.startswith('res'):
         # print(model.fc)
+        # new_classifier = nn.Sequential(
+        #     nn.Dropout(p=0.5),
+        #     nn.Linear(2048, 1024),
+        #     nn.ReLU(inplace=True),
+        #     nn.Dropout(p=0.5),
+        #     nn.Linear(1024, 1024),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(1024, num_classes),
+        # )
+        
         new_classifier = nn.Linear(model.fc.in_features, num_classes)
         model.fc = new_classifier
+        
         # print(model.fc.weight.shape)
         # print(model.fc)
 
@@ -128,17 +141,62 @@ def redefining_classifier(model, num_classes, model_name, isPretrained=True):
                 if len(param.size()) > 1:  # 只对权重进行初始化，跳过偏置
                     init.normal_(param.data, mean=0.0, std=0.01)
 
+    elif model_name.startswith('alexnet'):
+        new_classifier = nn.Sequential(
+            nn.Dropout(p=0.5),
+            nn.Linear(256 * 6 * 6, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.5),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_classes)
+        )
+        model.classifier = new_classifier
+        if isPretrained:
+            # 冻结除了fc层以外的所有参数
+            for name, param in model.named_parameters():
+                # print(name)
+                # print(param)
+                if "classifier" not in name:  
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
+
+            for layer in model.classifier:
+                # 检查层是否为线性层
+                if isinstance(layer, torch.nn.Linear):
+                    # 初始化分类层的参数为零
+                    layer.weight.data.zero_()
+                    layer.bias.data.zero_()
+                    # 随机初始化权重
+                    init.normal_(layer.weight.data, mean=0.0, std=0.01)
+                    
+                    
+        else:
+            # 初始化所有参数为零
+            for param in model.parameters():
+                param.data.zero_()
+
+            # 随机初始化所有权重
+            for param in model.parameters():
+                
+                if len(param.size()) > 1:  # 只对权重进行初始化，跳过偏置
+                    init.normal_(param.data, mean=0.0, std=0.01)
+
+
     else:
         print("程序已经暂停，请确定模型的类型后，按下回车键继续执行...")
         input()  # 等待用户按下回车键
         print("继续执行...")
+
+    
 
     print('redefining classifier is done')
 
     return model
 
     
-def train_with_error_tracking(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs, model_name=model_names[0]):
+def train_with_error_tracking(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs, model_name):
     train_errors = []
     val_errors = []
     
@@ -165,14 +223,30 @@ def train_with_error_tracking(model, train_loader, val_loader, criterion, optimi
         train_bar = tqdm(train_loader, total=len(train_loader), desc=f'Epoch {epoch+1}/{num_epochs}, LR: {current_lr}')
 
         for _, (images, labels) in enumerate(train_bar):
+            
             optimizer.zero_grad()
+            
             outputs = model(images)
+            '''
+            
+            '''
+            # print(outputs.size())
+            '''
+            torch.Size([32, 102])
+            '''
+            
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * images.size(0)
 
+            # print(nn.functional.softmax(outputs, 1))
+            # print(nn.functional.softmax(outputs, 1).size())
             _, predicted = torch.max(outputs, 1)
+            # predicted = torch.softmax(outputs, 1)
+            # print(predicted)
+            # print(labels)
+            # print((predicted == labels).sum().item())
             correct_train += (predicted == labels).sum().item()
             total_train += labels.size(0)
             
@@ -239,7 +313,7 @@ def train_with_error_tracking(model, train_loader, val_loader, criterion, optimi
     # 绘制误差曲线图
     plot_error_curve(train_errors, val_errors, model_name=model_name)    
 
-def test_on_batch(model, test_loader, criterion, model_name=model_names[0]):
+def test_on_batch(model, test_loader, criterion, model_name):
 
     best_model_file = f'D:/my_checkpoints/{model_name}_best.pth'
     # r"D:/Research/resnet50_0.497.pkl"
@@ -312,7 +386,7 @@ def creating_dataset(BATCH_SIZE):
 
     return test_loader, train_loader, val_loader
 
-def main():
+def main(args):
     
     num_classes = 102
     LR = 1e-3
@@ -320,16 +394,19 @@ def main():
     iterations = 30
     times = 5
     EPOCH = iterations * times
-    MODEL_NAME = model_names[3]
-    isPretrained = False
+    MODEL_NAME = args.model_name
+    isPretrained = args.pretrained
     
     # 实例化一个预训练的模型
     # model = variants['resnet152']
-    model = initialize_model('resnet152', isPretrained)
+    model = initialize_model(MODEL_NAME, isPretrained)
 
     model = redefining_classifier(model, num_classes, MODEL_NAME, isPretrained=isPretrained)
 
     model.to(device)
+
+    # 计算模型参数数量和 FLOPs
+    # summary(model, (3, 224, 224), batch_size=BATCH_SIZE)
     
     if isPretrained:
         # 定义需要优化的参数
@@ -337,6 +414,8 @@ def main():
             params_to_optimize = model.fc.parameters() 
         elif MODEL_NAME.startswith('vit'):
             params_to_optimize = model.heads.head.parameters()
+        elif MODEL_NAME.startswith('alex'):
+            params_to_optimize = model.classifier.parameters()
         else:
             pass
     else:
@@ -354,17 +433,22 @@ def main():
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.3, patience=2, verbose=True)
 
     test_loader, train_loader, val_loader = creating_dataset(BATCH_SIZE)
-    
-    train_with_error_tracking(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs=EPOCH, model_name=MODEL_NAME)
 
-    test_on_batch(model, test_loader, criterion, model_name=MODEL_NAME)
-    # test_on_batch(model, val_loader, criterion)
+    if args.test:
+        test_on_batch(model, test_loader, criterion, model_name=MODEL_NAME)
+    else:
+    
+        train_with_error_tracking(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs=EPOCH, model_name=MODEL_NAME)
+
+        test_on_batch(model, test_loader, criterion, model_name=MODEL_NAME)
+        # test_on_batch(model, val_loader, criterion)
 
 if __name__ == "__main__":
     # 记录代码开始执行的时间
     start_time = time.time()
 
-    main()
+    args = parse_option()
+    main(args)
 
     # 记录代码执行结束的时间
     end_time = time.time()

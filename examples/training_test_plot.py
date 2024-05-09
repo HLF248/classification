@@ -12,7 +12,14 @@ plot_path = {
     'resnet152': r'D:/Research/ML-From-Scratch-master/mlfromscratch/resnet152_pic',
     'vit_base_16': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vit_base_16_pic',
     'vit_base_32': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vit_base_32_pic',
-    'vit_large_16': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vit_large_16_pic'
+    'vit_large_16': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vit_large_16_pic',
+    'alexnet': r'D:/Research/ML-From-Scratch-master/mlfromscratch/alexnet_pic',
+    'vgg11': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vgg11_pic',
+    'vgg11_bn': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vgg11_bn_pic',
+    'vgg13': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vgg13_pic',
+    'vgg16_bn': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vgg16_bn_pic',
+    'vgg19_bn': r'D:/Research/ML-From-Scratch-master/mlfromscratch/vgg19_bn_pic',
+    'googlenet': r'D:/Research/ML-From-Scratch-master/mlfromscratch/googlenet_pic'
 }
 
 
